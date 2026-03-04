@@ -14,8 +14,8 @@ Quick links:
 1. Open **Winslop.exe**
 2. Use the **tabs** to switch between areas:
    - **Windows**: system tweaks (feature tree)
-   - **Applications**: app debloater (scan installed apps and remove selected ones)
-   - **Install**: Install apps via winget
+   - **Apps**: app debloater (scan installed apps and remove selected ones)
+   - **Install**: install apps via winget
    - **Tools**: additional modules/extensions
 
 3. Use **Inspect system** to scan/analyze.
