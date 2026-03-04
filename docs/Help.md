@@ -33,7 +33,7 @@ Below is a quick overview of the Winslop interface.
 - **Start button (☰)**  
 Opens the main menu (selection actions, plugin/extension management, logs — varies by build).
 - **Search**  
-  Filters the current view (e.g., feature tree).  
+  Filters the current view (e.g., windows/feature;apps tree).  
   Tip: clear the search to show all items again.
 - **Refresh**  
 Updates the view and clears the log in the log window.
