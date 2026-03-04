@@ -71,16 +71,6 @@ namespace Winslop.Properties {
         }
         
         /// <summary>
-        ///   Sucht eine lokalisierte Ressource vom Typ System.Drawing.Bitmap.
-        /// </summary>
-        internal static System.Drawing.Bitmap AppLogo16 {
-            get {
-                object obj = ResourceManager.GetObject("AppLogo16", resourceCulture);
-                return ((System.Drawing.Bitmap)(obj));
-            }
-        }
-        
-        /// <summary>
         ///   Sucht eine lokalisierte Zeichenfolge, die Solitaire,CandyCrush,Netflix, Facebook,Twitter,Instagram,TikTok,Spotify, Skype,OneNote,OneDrive, Mail, Calendar, Weather,News,Maps, Groove, Movies,TV, Phone, Camera,Feedback,FeedbackHub, GetHelp,GetStarted,Messaging,Office,Paint3D,Print3D,StickyNotes,Wallet,YourPhone,3DViewer,Alarms,VoiceRecorder,ToDo,Whiteboard,ZuneMusic,ZuneVideo,3DViewer, DevHome, Copilot,MicrosoftPCManager ähnelt.
         /// </summary>
         internal static string PredefinedApps {

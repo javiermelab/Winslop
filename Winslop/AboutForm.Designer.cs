@@ -63,31 +63,32 @@
             this.lblHeader.AutoEllipsis = true;
             this.lblHeader.AutoSize = true;
             this.lblHeader.BackColor = System.Drawing.Color.Transparent;
-            this.lblHeader.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblHeader.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblHeader.ForeColor = System.Drawing.Color.Black;
-            this.lblHeader.Location = new System.Drawing.Point(142, 15);
+            this.lblHeader.Location = new System.Drawing.Point(185, 8);
             this.lblHeader.Name = "lblHeader";
-            this.lblHeader.Size = new System.Drawing.Size(52, 13);
+            this.lblHeader.Size = new System.Drawing.Size(45, 13);
             this.lblHeader.TabIndex = 235;
             this.lblHeader.Text = "Winslop";
             this.lblHeader.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // lblVersionInfo
             // 
-            this.lblVersionInfo.AutoSize = true;
+            this.lblVersionInfo.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.lblVersionInfo.AutoEllipsis = true;
             this.lblVersionInfo.BackColor = System.Drawing.Color.Transparent;
-            this.lblVersionInfo.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblVersionInfo.Font = new System.Drawing.Font("Consolas", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblVersionInfo.ForeColor = System.Drawing.Color.Black;
-            this.lblVersionInfo.Location = new System.Drawing.Point(192, 15);
+            this.lblVersionInfo.Location = new System.Drawing.Point(306, 9);
             this.lblVersionInfo.Name = "lblVersionInfo";
-            this.lblVersionInfo.Size = new System.Drawing.Size(13, 13);
+            this.lblVersionInfo.Size = new System.Drawing.Size(83, 13);
             this.lblVersionInfo.TabIndex = 238;
             this.lblVersionInfo.Text = "v";
-            this.lblVersionInfo.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.lblVersionInfo.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             // 
             // panelForm
             // 
-            this.panelForm.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(195)))), ((int)(((byte)(199)))), ((int)(((byte)(203)))));
+            this.panelForm.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(230)))), ((int)(((byte)(232)))), ((int)(((byte)(236)))));
             this.panelForm.Controls.Add(this.checkDonated);
             this.panelForm.Controls.Add(this.pictureBox1);
             this.panelForm.Controls.Add(this.linkCopyright);
@@ -123,9 +124,9 @@
             // pictureBox1
             // 
             this.pictureBox1.Image = global::Winslop.Properties.Resources.AppLogo;
-            this.pictureBox1.Location = new System.Drawing.Point(158, 31);
+            this.pictureBox1.Location = new System.Drawing.Point(188, 31);
             this.pictureBox1.Name = "pictureBox1";
-            this.pictureBox1.Size = new System.Drawing.Size(55, 49);
+            this.pictureBox1.Size = new System.Drawing.Size(36, 40);
             this.pictureBox1.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
             this.pictureBox1.TabIndex = 239;
             this.pictureBox1.TabStop = false;
@@ -137,12 +138,12 @@
             this.linkCopyright.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.linkCopyright.LinkBehavior = System.Windows.Forms.LinkBehavior.HoverUnderline;
             this.linkCopyright.LinkColor = System.Drawing.Color.Black;
-            this.linkCopyright.Location = new System.Drawing.Point(12, 93);
+            this.linkCopyright.Location = new System.Drawing.Point(12, 85);
             this.linkCopyright.Name = "linkCopyright";
             this.linkCopyright.Size = new System.Drawing.Size(362, 13);
             this.linkCopyright.TabIndex = 100;
             this.linkCopyright.TabStop = true;
-            this.linkCopyright.Text = "Copyright (c) 2026, A Belim app creation.";
+            this.linkCopyright.Text = "© 2026 ·  A Belim App creation · Open Source: View on GitHub";
             this.linkCopyright.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.linkCopyright.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.linkCopyright_LinkClicked);
             // 

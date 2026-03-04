@@ -60,10 +60,10 @@
             this.btnDescription.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.btnDescription.AutoEllipsis = true;
-            this.btnDescription.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(216)))), ((int)(((byte)(173)))), ((int)(((byte)(183)))));
+            this.btnDescription.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(27)))), ((int)(((byte)(52)))), ((int)(((byte)(130)))));
             this.btnDescription.FlatAppearance.BorderColor = System.Drawing.Color.Gainsboro;
-            this.btnDescription.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.btnDescription.ForeColor = System.Drawing.Color.Black;
+            this.btnDescription.Font = new System.Drawing.Font("Consolas", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnDescription.ForeColor = System.Drawing.Color.White;
             this.btnDescription.Location = new System.Drawing.Point(15, 10);
             this.btnDescription.Name = "btnDescription";
             this.btnDescription.Padding = new System.Windows.Forms.Padding(20, 0, 100, 0);
@@ -154,7 +154,8 @@
             // 
             this.linkPluginUsage.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.linkPluginUsage.AutoSize = true;
-            this.linkPluginUsage.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(216)))), ((int)(((byte)(173)))), ((int)(((byte)(183)))));
+            this.linkPluginUsage.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(27)))), ((int)(((byte)(52)))), ((int)(((byte)(130)))));
+            this.linkPluginUsage.LinkColor = System.Drawing.Color.White;
             this.linkPluginUsage.Location = new System.Drawing.Point(535, 16);
             this.linkPluginUsage.Name = "linkPluginUsage";
             this.linkPluginUsage.Size = new System.Drawing.Size(67, 13);
@@ -202,7 +203,7 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
             this.AutoScroll = true;
-            this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(189)))), ((int)(((byte)(189)))), ((int)(((byte)(189)))));
+            this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(230)))), ((int)(((byte)(232)))), ((int)(((byte)(236)))));
             this.Controls.Add(this.listPlugins);
             this.Controls.Add(this.linkPluginUsage);
             this.Controls.Add(this.textSearch);

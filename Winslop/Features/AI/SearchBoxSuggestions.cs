@@ -3,12 +3,12 @@ using System;
 using Winslop;
 using System.Threading.Tasks;
 
-namespace Settings.System
+namespace Settings.AI
 {
-    internal class TaskbarEndTask : FeatureBase
+    internal class DisableSearchBoxSuggestions : FeatureBase
     {
-        private const string keyName = @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings";
-        private const string valueName = "TaskbarEndTask";
+        private const string keyName = @"HKEY_CURRENT_USER\Software\Policies\Microsoft\Windows\Explorer";
+        private const string valueName = "DisableSearchBoxSuggestions";
         private const int recommendedValue = 1;
 
         public override string GetFeatureDetails()
@@ -18,13 +18,14 @@ namespace Settings.System
 
         public override string ID()
         {
-            return "Enable End Task";
+            return "Disable Bing search results";
         }
 
         public override string HelpAnchorId()
         {
             return ID();
         }
+
         public override Task<bool> CheckFeature()
         {
             return Task.FromResult(Utils.IntEquals(keyName, valueName, recommendedValue));
@@ -39,25 +40,23 @@ namespace Settings.System
             }
             catch (Exception ex)
             {
-                Logger.Log("Failed to enable End Task: " + ex.Message, LogLevel.Error);
+                Logger.Log("Error in DisableSearchBoxSuggestions: " + ex.Message, LogLevel.Error);
+                return Task.FromResult(false);
             }
-
-            return Task.FromResult(false);
         }
 
         public override bool UndoFeature()
         {
             try
             {
-                Registry.SetValue(keyName, valueName, 0, RegistryValueKind.DWord);
+                Registry.SetValue(keyName, valueName, 0, RegistryValueKind.DWord); // 0 = Enable suggestions
                 return true;
             }
             catch (Exception ex)
             {
-                Logger.Log("Failed to disable End Task: " + ex.Message, LogLevel.Error);
+                Logger.Log("Error undoing DisableSearchBoxSuggestions: " + ex.Message, LogLevel.Error);
+                return false;
             }
-
-            return false;
         }
     }
 }

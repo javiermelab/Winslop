@@ -1,6 +1,5 @@
 ﻿using Features;
 using System;
-using System.Diagnostics;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -18,7 +17,6 @@ namespace Winslop
 
         // Public properties to access the analysis results
         public static int TotalChecked => totalChecked;
-
         public static int IssuesFound => issuesFound;
 
         public static void ResetAnalysis()
@@ -72,6 +70,17 @@ namespace Winslop
             string text = featureNode.IsCategory
                 ? "  " + featureNode.Name + "  " // add extra space to avoid clipping
                 : featureNode.Name;
+
+            // ----------------------------------------------------------------------------
+            // If the feature is not applicable, append a hint to the text.
+            // The actual check is done during analysis, but this gives an early visual cue.
+            if (!featureNode.IsCategory && featureNode.Feature != null && !featureNode.Feature.IsApplicable())
+            {
+                // Append applicability hint to the node text.
+                text += " (not applicable)";
+            }
+
+            // ----------------------------------------------------------------------------
 
             TreeNode node = new TreeNode(text)
             {
@@ -135,6 +144,23 @@ namespace Winslop
                 // If the node is not a category, is checked, and has a feature to check
                 if (!fn.IsCategory && node.Checked && fn.Feature != null)
                 {
+                    // ----------------------------------------------------------------------------
+                    // Always analyze the selected leaf node, regardless of Checked state, but skip if not applicable.
+                    if (!fn.Feature.IsApplicable())
+                    {
+                        // Mark as not applicable and skip checks.
+                        node.ForeColor = Color.DarkGray;
+
+                        string reason = fn.Feature.InapplicableReason();
+                        if (!string.IsNullOrWhiteSpace(reason))
+                            Logger.Log($"ℹ️ [{node.Parent?.Text ?? "General"}] {fn.Name} - Skipped: {reason}", LogLevel.Info);
+                        else
+                            Logger.Log($"ℹ️ [{node.Parent?.Text ?? "General"}] {fn.Name} - Skipped: Not applicable on this OS.", LogLevel.Info);
+
+                        return;
+                    }
+                    // ----------------------------------------------------------------------------
+
                     totalChecked++;
                     bool isOk = await fn.Feature.CheckFeature();  // Await the async operation
 
@@ -171,6 +197,15 @@ namespace Winslop
             {
                 if (!fn.IsCategory && node.Checked && fn.Feature != null)
                 {
+                    // ----------------------------------------------------------------------------
+                    // Always attempt to fix the selected leaf node, regardless of Checked state, but skip if not applicable.
+                    if (!fn.Feature.IsApplicable())
+                    {
+                        Logger.Log($"ℹ️ {fn.Name} - Skipped: {fn.Feature.InapplicableReason() ?? "Not applicable on this OS."}", LogLevel.Info);
+                        return;
+                    }
+                    // ----------------------------------------------------------------------------
+
                     bool result = await fn.Feature.DoFeature();
                     Logger.Log(result
                         ? $"🔧 {fn.Name} - Fixed"
@@ -192,6 +227,15 @@ namespace Winslop
             {
                 if (!fn.IsCategory && node.Checked && fn.Feature != null)
                 {
+                    // ----------------------------------------------------------------------------
+                    // Always restore the selected leaf node, regardless of Checked state, but skip if not applicable.
+                    if (!fn.Feature.IsApplicable())
+                    {
+                        Logger.Log($"ℹ️ {fn.Name} - Skipped restore: {fn.Feature.InapplicableReason() ?? "Not applicable on this OS."}", LogLevel.Info);
+                        return;
+                    }
+                    // ----------------------------------------------------------------------------
+
                     bool ok = fn.Feature.UndoFeature();
                     string category = node.Parent?.Text ?? "General";
                     Logger.Log(ok
@@ -213,6 +257,15 @@ namespace Winslop
             // Analyze this node if it's a leaf node (not a category)
             if (node.Tag is FeatureNode fn && !fn.IsCategory && fn.Feature != null)
             {
+                // ----------------------------------------------------------------------------
+                // Always analyze the selected leaf node, regardless of Checked state, but skip if not applicable.
+                if (!fn.Feature.IsApplicable())
+                {
+                    Logger.Log($"ℹ️ {fn.Name} - Skipped: {fn.Feature.InapplicableReason() ?? "Not applicable on this OS."}", LogLevel.Info);
+                    return;
+                }
+                // ----------------------------------------------------------------------------
+
                 bool isOk = await fn.Feature.CheckFeature();
                 node.ForeColor = isOk ? Color.Gray : Color.Red;
 
@@ -247,6 +300,18 @@ namespace Winslop
             // Try to fix this node if it is NOT a category (i.e., a leaf node)
             if (node.Tag is FeatureNode fn && !fn.IsCategory && fn.Feature != null)
             {
+                // ----------------------------------------------------------------------------
+                // Skip features that are not applicable on this OS/environment
+                if (!fn.Feature.IsApplicable())
+                {
+                    Logger.Log(
+                        $"ℹ️ {fn.Name} - Skipped: {fn.Feature.InapplicableReason() ?? "Not applicable on this OS."}",
+                        LogLevel.Info);
+
+                    return;
+                }
+                // ----------------------------------------------------------------------------
+
                 // Always fix the selected leaf node, regardless of Checked
                 bool result = await fn.Feature.DoFeature();
                 Logger.Log(result
@@ -274,6 +339,15 @@ namespace Winslop
             // Restore feature node regardless of Checked state
             if (node.Tag is FeatureNode fn && !fn.IsCategory && fn.Feature != null)
             {
+                // ----------------------------------------------------------------------------
+                // Skip features that are not applicable on this OS/environment.
+                if (!fn.Feature.IsApplicable())
+                    {
+                    Logger.Log($"ℹ️ {fn.Name} - Skipped restore: {fn.Feature.InapplicableReason() ?? "Not applicable on this OS."}", LogLevel.Info);
+                    return;
+                }
+                // ----------------------------------------------------------------------------
+
                 bool ok = fn.Feature.UndoFeature();
                 Logger.Log(ok
                     ? $"↩️ {fn.Name} - Restored"

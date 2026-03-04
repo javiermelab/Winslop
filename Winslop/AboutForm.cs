@@ -11,20 +11,19 @@ namespace Winslop
             InitializeComponent();
             InitializeUI();
             checkDonated.Checked = DonationHelper.HasDonated();
-            panelForm.BackColor = checkDonated.Checked ? System.Drawing.Color.FromArgb(216, 173, 183) : System.Drawing.Color.FromArgb(195, 199, 203);
         }
 
         private void InitializeUI()
         {
             // Update version label
-            this.lblVersionInfo.Text = $"Version {Program.GetAppVersion()} ";
+            this.lblVersionInfo.Text = $"v{Program.GetAppVersion()} ";
         }
 
         private void btnDonate_Click(object sender, EventArgs e)
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName = "https://www.paypal.me/Hasanovic7",
+                FileName = "https://www.paypal.com/donate/?hosted_button_id=BNVXAGPQ8CTR6",
                 UseShellExecute = true
             });
         }

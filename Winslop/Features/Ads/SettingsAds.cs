@@ -1,73 +1,84 @@
 ﻿using Microsoft.Win32;
 using System;
-using Winslop;
 using System.Threading.Tasks;
+using Winslop;
 
-namespace Settings.Ads
+namespace Settings.Privacy
 {
     internal class SettingsAds : FeatureBase
     {
-        private const string keyName = @"HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager";
-        private const string valueName = "SubscribedContent-338393Enabled";
-        private const string valueName2 = "SubscribedContent-353694Enabled";
-        private const string valueName3 = "SubscribedContent-353696Enabled";
+        private const string keyName = @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager";
 
-        private const int recommendedValue = 0;
-
-        public override string ID() => "Disable Settings Ads";
-
-        public override string HelpAnchorId()
+        private static readonly string[] valueNames = new[]
         {
-            return ID();
+            "SubscribedContent-338393Enabled",
+            "SubscribedContent-353694Enabled",
+            "SubscribedContent-353696Enabled",
+        };
+
+        private const int recommendedValue = 0; // 0 = disable suggested/promotional content in Settings
+
+        public override string ID()
+        {
+            return "Disable Settings Ads";
         }
 
         public override string GetFeatureDetails()
         {
-            return $"{keyName} | Value: {valueName} + {valueName2} + {valueName3} | Recommended Value: {recommendedValue}";
+            return $"{keyName} | Values: {string.Join(", ", valueNames)} | Recommended Value: {recommendedValue}";
         }
 
         public override Task<bool> CheckFeature()
         {
-            return Task.FromResult(Utils.IntEquals(keyName, valueName, recommendedValue) &&
-                   Utils.IntEquals(keyName, valueName2, recommendedValue) &&
-                   Utils.IntEquals(keyName, valueName3, recommendedValue)
-            );
+            // All values must match the recommended value.
+            foreach (string vn in valueNames)
+            {
+                if (!Utils.IntEquals(keyName, vn, recommendedValue))
+                    return Task.FromResult(false);
+            }
+
+            return Task.FromResult(true);
         }
 
         public override Task<bool> DoFeature()
         {
             try
             {
-                Registry.SetValue(keyName, valueName, 0, Microsoft.Win32.RegistryValueKind.DWord);
-                Registry.SetValue(keyName, valueName2, 0, Microsoft.Win32.RegistryValueKind.DWord);
-                Registry.SetValue(keyName, valueName3, 0, Microsoft.Win32.RegistryValueKind.DWord);
+                // Disable suggested content by setting all related values to 0.
+                foreach (string vn in valueNames)
+                    Registry.SetValue(keyName, vn, recommendedValue, RegistryValueKind.DWord);
 
                 return Task.FromResult(true);
             }
             catch (Exception ex)
             {
                 Logger.Log("Code red in " + ex.Message, LogLevel.Error);
+                return Task.FromResult(false);
             }
-
-            return Task.FromResult(false);
         }
 
         public override bool UndoFeature()
         {
             try
             {
-                Registry.SetValue(keyName, valueName, 1, Microsoft.Win32.RegistryValueKind.DWord);
-                Registry.SetValue(keyName, valueName2, 1, Microsoft.Win32.RegistryValueKind.DWord);
-                Registry.SetValue(keyName, valueName3, 1, Microsoft.Win32.RegistryValueKind.DWord);
+                // Remove values to return to Windows default behavior.
+                using (var k = Registry.CurrentUser.OpenSubKey(
+                    @"Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", writable: true))
+                {
+                    if (k != null)
+                    {
+                        foreach (string vn in valueNames)
+                            k.DeleteValue(vn, throwOnMissingValue: false);
+                    }
+                }
 
                 return true;
             }
             catch (Exception ex)
             {
                 Logger.Log("Code red in " + ex.Message, LogLevel.Error);
+                return false;
             }
-
-            return false;
         }
     }
 }

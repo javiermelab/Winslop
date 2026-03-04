@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -9,110 +10,196 @@ namespace Winslop.Extensions
 {
     public partial class ExtensionsView : UserControl, ISearchable, IView
     {
-        private ExtensionsCategory _category; // The category this view represents
+        private ExtensionsCategory _category = ExtensionsCategory.All;
+
+        // Full list loaded from scripts
         private readonly List<ExtensionsDefinition> _allTools = new List<ExtensionsDefinition>();
 
-        // Caches UI controls for each tool so they are not recreated every time.
-        private readonly Dictionary<ExtensionsDefinition, ExtensionsItemControl> _controlCache
-            = new Dictionary<ExtensionsDefinition, ExtensionsItemControl>();
+        // Filtered list shown in the ListBox
+        private readonly BindingList<ExtensionsDefinition> _visibleTools = new BindingList<ExtensionsDefinition>();
 
-        // Pending tool selection (if any) to apply after loading
-        private string _pendingSelectTool = null;
+        private readonly BindingSource _bs = new BindingSource();
 
-        // Overloaded constructor with category filter
+        private string _searchQuery = string.Empty;
+
         public ExtensionsView(ExtensionsCategory category = ExtensionsCategory.All)
         {
             InitializeComponent();
+            this.AutoScaleMode = AutoScaleMode.Dpi;
             _category = category;
+
+            // Setup filter dropdown
+            comboFilter.Items.Clear();
             comboFilter.Items.AddRange(new object[] { "All", "Tool", "Pre", "Mid", "Post" });
-            //comboFilter.SelectedItem = _category.ToString();
-            // Prevent the SelectedIndexChanged event from firing during initial setup,
-            // because changing SelectedIndex will otherwise trigger LoadTools() too early.
+
             comboFilter.SelectedIndexChanged -= comboFilter_SelectedIndexChanged;
-            comboFilter.SelectedIndex = 0; // Set default filter UI state without applying filtering logic yet
+            comboFilter.SelectedIndex = 0;
             comboFilter.SelectedIndexChanged += comboFilter_SelectedIndexChanged;
 
-            LoadTools();
+            // Setup ListBox binding (left side)
+            _bs.DataSource = _visibleTools;
+            listTools.DataSource = _bs;
+            listTools.DisplayMember = nameof(ExtensionsDefinition.Title);
+            listTools.SelectedIndexChanged += listTools_SelectedIndexChanged;
+
+            // Create the right panel (details) in code
+            //CreateDetailsPanel();
+
+            // Hook uninstall event
+            detailsControl.ToolUninstalled += (s, e) => LoadToolsAsync();
+
+            // Start with empty detailsControl panel
+            detailsControl.SetTool(null);
+
+            // Load scripts
+            LoadToolsAsync();
         }
 
-        private async void LoadTools()
+        ///// <summary>
+        ///// Creates the detailsControl panel and docks it to fill remaining space.
+        ///// This avoids needing to drag custom controls in the designer.
+        ///// </summary>
+        //private void CreatedetailsControlPanel()
+        //{
+        //    detailsControl = new ExtensionsItemControl();
+        //    detailsControl.Dock = DockStyle.Right;
+
+        //    // Add after listTools so it fills the remaining area
+        //    Controls.Add(detailsControl);
+        //    detailsControl.BringToFront();
+
+        //    // When user uninstalls, reload list
+        //    detailsControl.ToolUninstalled += (s, e) => LoadToolsAsync();
+
+        //    // Start with nothing selected
+        //    detailsControl.SetTool(null);
+        //}
+
+        private async void LoadToolsAsync()
         {
             lblStatus.Visible = true;
-            // Prevent flicker during bulk UI update
-            flowLayoutPanelTools.SuspendLayout();
-            flowLayoutPanelTools.Controls.Clear();
-            _controlCache.Clear();
-            _allTools.Clear();
+            lblStatus.Text = "Loading extensions...";
 
-            // Define the scripts directory relative to the executable path
+            _allTools.Clear();
+            _visibleTools.Clear();
+            detailsControl.SetTool(null);
+
             string scriptDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "scripts");
 
-            // If the directory does not exist, create it
             if (!Directory.Exists(scriptDirectory))
             {
                 Directory.CreateDirectory(scriptDirectory);
-                flowLayoutPanelTools.ResumeLayout();
+                lblStatus.Text = "Scripts folder was missing, created it.";
                 return;
             }
 
-            // Get all .ps1 files in the folder (async to avoid UI freeze)
+            // Get scripts
             string[] scriptFiles = await Task.Run(() => Directory.GetFiles(scriptDirectory, "*.ps1"));
 
-            // Parse metadata and construct tool definitions in background
+            // Parse metadata in background
             var loadedTools = await Task.Run(() =>
             {
                 var list = new List<ExtensionsDefinition>();
 
-                // Loop through each script and create a tool item
                 foreach (var scriptPath in scriptFiles)
                 {
-                    string fileName = Path.GetFileNameWithoutExtension(scriptPath); // Use file name as title
-                    string icon = PickIconForScript(fileName);                      // Choose an icon based on the name
-
-                    // Read metadata (description, options, category, etc.)
+                    string title = Path.GetFileNameWithoutExtension(scriptPath);
+                    string icon = PickIconForScript(title);
                     var meta = ReadMetadataFromScript(scriptPath);
 
-                    // Skip tools not matching the current category
-                    if (_category != ExtensionsCategory.All && meta.category != _category)
-                        continue;
+                    var tool = new ExtensionsDefinition(title, meta.description, icon, scriptPath)
+                    {
+                        Category = meta.category,
+                        UseConsole = meta.useConsole,
+                        UseLog = meta.useLog,
+                        SupportsInput = meta.inputEnabled,
+                        InputPlaceholder = meta.inputPh,
+                        PoweredByText = meta.poweredByText,
+                        PoweredByUrl = meta.poweredByUrl
+                    };
 
-                    // Create tool definition
-                    var tool = new ExtensionsDefinition(fileName, meta.description, icon, scriptPath);
                     tool.Options.AddRange(meta.options);
-                    tool.UseConsole = meta.useConsole;
-                    tool.UseLog = meta.useLog;
-                    tool.SupportsInput = meta.inputEnabled;
-                    tool.InputPlaceholder = meta.inputPh;
-                    tool.PoweredByText = meta.poweredByText;
-                    tool.PoweredByUrl = meta.poweredByUrl;
-                    list.Add(tool);                // Save for search/filter
+                    list.Add(tool);
                 }
 
                 return list;
             });
 
-            // Create UI controls now, but only once (no recreation during filtering)
-            foreach (var tool in loadedTools)
-            {
-                var control = new ExtensionsItemControl(tool);
-                _controlCache[tool] = control; // Cache it so filtering is instant
-                flowLayoutPanelTools.Controls.Add(control);
-                _allTools.Add(tool);
-            }
+            _allTools.AddRange(loadedTools);
+
+            ApplyFilterAndSearch();
 
             lblStatus.Visible = false;
-            flowLayoutPanelTools.ResumeLayout();
+
+            // Auto-select first item
+            if (listTools.Items.Count > 0 && listTools.SelectedIndex < 0)
+                listTools.SelectedIndex = 0;
+        }
+
+        private void listTools_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            var tool = listTools.SelectedItem as ExtensionsDefinition;
+            detailsControl.SetTool(tool);
+        }
+
+        private void comboFilter_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            switch (comboFilter.SelectedItem?.ToString())
+            {
+                case "Tool": _category = ExtensionsCategory.Tool; break;
+                case "Pre": _category = ExtensionsCategory.Pre; break;
+                case "Mid": _category = ExtensionsCategory.Mid; break;
+                case "Post": _category = ExtensionsCategory.Post; break;
+                default: _category = ExtensionsCategory.All; break;
+            }
+
+            ApplyFilterAndSearch();
+        }
+
+        public void ApplySearch(string query)
+        {
+            _searchQuery = query ?? string.Empty;
+            ApplyFilterAndSearch();
         }
 
         /// <summary>
-        /// Reads metadata from a script header, such as description, category, and options.
-        /// Example in .ps1:
-        /// # Description: Cleans pre-installed apps
-        /// # Category: Post
-        /// # Options: Light;Full
-        /// # Host: log
+        /// Applies category + search filters and refreshes the left ListBox.
         /// </summary>
-        // Parses script header metadata (first ~15 lines) and returns all fields.
+        private void ApplyFilterAndSearch()
+        {
+            string q = (_searchQuery ?? "").Trim().ToLowerInvariant();
+
+            var filtered = _allTools
+                .Where(t =>
+                    (_category == ExtensionsCategory.All || t.Category == _category) &&
+                    (string.IsNullOrEmpty(q) ||
+                     (t.Title ?? "").ToLowerInvariant().Contains(q) ||
+                     (t.Description ?? "").ToLowerInvariant().Contains(q)))
+                .OrderBy(t => t.Title)
+                .ToList();
+
+            _visibleTools.RaiseListChangedEvents = false;
+            _visibleTools.Clear();
+            foreach (var t in filtered)
+                _visibleTools.Add(t);
+            _visibleTools.RaiseListChangedEvents = true;
+            _visibleTools.ResetBindings();
+
+            // If nothing matches, clear detailsControl panel
+            if (_visibleTools.Count == 0)
+            {
+                detailsControl.SetTool(null);
+            }
+        }
+
+        public void RefreshView()
+        {
+            Logger.Clear();
+            LoadToolsAsync();
+        }
+
+        // ---------------- Metadata parsing ----------------
+
         private (string description,
                  List<string> options,
                  ExtensionsCategory category,
@@ -136,9 +223,7 @@ namespace Winslop.Extensions
 
             try
             {
-                // Only scan the first lines for metadata.
-                // Extensions put their headers (# Description, # Host, # Options) at the top,
-                // so we dont waste time parsing a huge script body.
+                // Only scan first lines for metadata
                 var lines = File.ReadLines(scriptPath).Take(15);
 
                 foreach (var line in lines)
@@ -161,22 +246,17 @@ namespace Winslop.Extensions
                     }
                     else if (line.StartsWith("# Options:", StringComparison.OrdinalIgnoreCase))
                     {
-                        // Parse dropdown options
                         options = line.Substring(10)
                             .Split(';')
                             .Select(x => x.Trim())
-                            .Where(x => !string.IsNullOrEmpty(x)) // ignore empty entries
+                            .Where(x => !string.IsNullOrEmpty(x))
                             .ToList();
                     }
                     else if (line.StartsWith("# Host:", StringComparison.OrdinalIgnoreCase))
                     {
-                        // Parse host type
                         var raw = line.Substring(7).Trim().ToLowerInvariant();
-                        if (raw == "console") // standard console window
-                            useConsole = true;
-                        else if (raw == "log") // custom log viewer
-                            useLog = true;
-                        // "embedded"/"silent" == both false
+                        if (raw == "console") useConsole = true;
+                        else if (raw == "log") useLog = true;
                     }
                     else if (line.StartsWith("# Input:", StringComparison.OrdinalIgnoreCase))
                     {
@@ -187,13 +267,14 @@ namespace Winslop.Extensions
                     {
                         inputPh = line.Substring(19).Trim();
                     }
-                    // PoweredBy metadata (optional)
                     else if (line.StartsWith("# PoweredBy:", StringComparison.OrdinalIgnoreCase))
-                        poweredByText = line.Substring(12).Trim();   // 11 chars + 1 for :
+                    {
+                        poweredByText = line.Substring(12).Trim();
+                    }
                     else if (line.StartsWith("# PoweredUrl:", StringComparison.OrdinalIgnoreCase))
-                        poweredByUrl = line.Substring(13).Trim();    // 12 chars + 1 for :
-
-                    // Use the first regular comment as description (if none yet)
+                    {
+                        poweredByUrl = line.Substring(13).Trim();
+                    }
                     else if (line.StartsWith("#"))
                     {
                         if (description == "No description available.")
@@ -203,82 +284,30 @@ namespace Winslop.Extensions
             }
             catch
             {
-                // Ignore errors and keep defaults
+                // Keep defaults
             }
+
             return (description, options, category, useConsole, useLog, inputEnabled, inputPh, poweredByText, poweredByUrl);
         }
 
         private string PickIconForScript(string name)
         {
-            name = name.ToLower();
+            name = (name ?? "").ToLowerInvariant();
 
-            // Basic keyword-based icon picking using Segoe MDL2 Assets
-            if (name.Contains("debloat")) return "\uE74D";      // Trash icon (cleanup)
-            if (name.Contains("network")) return "\uE701";      // Network icon (network tools)
-            if (name.Contains("explorer")) return "\uE8B7";     // File Explorer icon (file management)
-            if (name.Contains("update")) return "\uE895";       // Update icon (system updates)
-            if (name.Contains("context")) return "\uE8A5";      // Menu icon (context menu tweaks)
+            if (name.Contains("debloat")) return "\uE74D";
+            if (name.Contains("network")) return "\uE701";
+            if (name.Contains("explorer")) return "\uE8B7";
+            if (name.Contains("update")) return "\uE895";
+            if (name.Contains("context")) return "\uE8A5";
 
-            // Additional general categories
-            if (name.Contains("backup")) return "\uE8C7";       // Save icon (backup tools)
-            if (name.Contains("security")) return "\uE72E";     // Shield icon (security tools)
-            if (name.Contains("performance")) return "\uE7B8";  // Speedometer icon (performance)
-            if (name.Contains("privacy")) return "\uF552";      // Privacy icon (privacy settings)
-            if (name.Contains("app")) return "\uED35";          // App icon (application management)
-            if (name.Contains("setup")) return "\uE8FB";        // Install icon (installers)
+            if (name.Contains("backup")) return "\uE8C7";
+            if (name.Contains("security")) return "\uE72E";
+            if (name.Contains("performance")) return "\uE7B8";
+            if (name.Contains("privacy")) return "\uF552";
+            if (name.Contains("app")) return "\uED35";
+            if (name.Contains("setup")) return "\uE8FB";
 
-            return "\uE7C5"; // Wrench icon (default for uncategorized tools)
-        }
-
-        public void RefreshView()
-        {
-            flowLayoutPanelTools.Controls.Clear();
-            LoadTools();
-
-            Logger.Clear(); // Clear log output when refreshing the view
-        }
-
-        private void comboFilter_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            switch (comboFilter.SelectedItem.ToString())
-            {
-                case "Tool": _category = ExtensionsCategory.Tool; break;
-                case "Pre": _category = ExtensionsCategory.Pre; break;
-                case "Mid": _category = ExtensionsCategory.Mid; break;
-                case "Post": _category = ExtensionsCategory.Post; break;
-                default: _category = ExtensionsCategory.All; break;
-            }
-
-            LoadTools(); // re-render based on new category
-        }
-
-        // ---------------- SearchInterface ----------------
-        private void DisplayFilteredTools(string filter)
-        {
-            flowLayoutPanelTools.SuspendLayout();
-            flowLayoutPanelTools.Controls.Clear();
-
-            string f = filter?.ToLowerInvariant() ?? "";
-
-            foreach (var kv in _controlCache)
-            {
-                var tool = kv.Key;
-                var control = kv.Value;
-
-                bool show = string.IsNullOrWhiteSpace(f)
-                            || tool.Title.ToLower().Contains(f)
-                            || tool.Description.ToLower().Contains(f);
-
-                if (show)
-                    flowLayoutPanelTools.Controls.Add(control);
-            }
-
-            flowLayoutPanelTools.ResumeLayout();
-        }
-
-        public void ApplySearch(string query)
-        {
-            DisplayFilteredTools(query);
+            return "\uE7C5";
         }
     }
 }

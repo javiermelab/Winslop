@@ -16,11 +16,28 @@ namespace Winslop.Views
         /// analyze/fix/restore actions for that tree.
         /// </summary>
         private TreeNode[] _originalNodes;
+        private bool _profilesWired;
 
         public FeaturesView()
         {
             InitializeComponent();
             InitializeAppState();
+        }
+
+        private void FeaturesView_Load(object sender, EventArgs e)
+        {
+            if (_profilesWired) return;
+
+            TreeSelectionTransferV1.WireProfileComboBox(
+              comboProfiles,
+                treeFeatures,
+                this.FindForm(),
+                directory: AppDomain.CurrentDomain.BaseDirectory,
+                clearFirst: true,
+                log: msg => Logger.Log(msg, LogLevel.Info)
+            );
+
+            _profilesWired = true;
         }
 
         public void InitializeAppState()
@@ -349,5 +366,7 @@ namespace Winslop.Views
 
             Logger.Log($"↩️ Restored {checkedCount} selected item(s).", LogLevel.Info);
         }
+
+
     }
 }

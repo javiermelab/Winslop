@@ -53,11 +53,12 @@ namespace Winslop
         public static void ShowDonationPrompt()
         {
             string message =
-                "Winslop is intentionally small, plain and functional — anti-slop by design.\n\n" +
-                "If this helped you de-slop Windows and keep control of your system,\n" +
-                "consider supporting development with a voluntary donation.\n\n" +
-                "Everything stays free and available to everyone.\n\n" +
-                "Open PayPal donation link now?";
+              "Winslop is intentionally small, plain and functional — anti-slop by design.\n\n" +
+              "If Winslop helped you remove bloat, speed things up, or regain control of Windows,\n" +
+              "please consider a small voluntary donation.\n\n" +
+              "It keeps development going and helps keep everything free for everyone.\n\n" +
+              "Open the PayPal donation link now?";
+
 
             var result = MessageBox.Show(
                 message,
@@ -70,7 +71,7 @@ namespace Winslop
 
             Process.Start(new ProcessStartInfo
             {
-                FileName = "https://www.paypal.me/Hasanovic7",
+                FileName = "https://www.paypal.com/donate/?hosted_button_id=BNVXAGPQ8CTR6",
                 UseShellExecute = true
             });
         }

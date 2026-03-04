@@ -22,7 +22,6 @@ namespace Features
                     Children =
                     {
                         new FeatureNode(new BasicCleanup()),
-                        new FeatureNode(new WingetUpgradeAll()) { DefaultChecked = false },
                     }
                 },
 
@@ -36,7 +35,6 @@ namespace Features
                        new FeatureNode(new NetworkThrottling()),
                        new FeatureNode(new SystemResponsiveness()),
                        new FeatureNode(new MenuShowDelay()),
-                       new FeatureNode(new TaskbarEndTask()),
                        new FeatureNode(new DisableHibernation()),
                     }
                 },
@@ -66,17 +64,30 @@ namespace Features
                     {
                        new FeatureNode(new FullContextMenus()),
                        new FeatureNode(new LockScreen()),
-                       new FeatureNode(new SearchboxTaskbarMode()),
                        new FeatureNode(new ShowOrHideMostUsedApps()),
-                       new FeatureNode(new ShowTaskViewButton()),
-                       new FeatureNode(new DisableSearchBoxSuggestions()),
                        new FeatureNode(new DisableBingSearch()),
                        new FeatureNode(new StartLayout()),
-                       new FeatureNode(new TaskbarAlignment()),
                        new FeatureNode(new Transparency()),
                        new FeatureNode(new AppDarkMode()) { DefaultChecked = false },
                        new FeatureNode(new SystemDarkMode()) { DefaultChecked = false },
                        new FeatureNode(new DisableSnapAssistFlyout()),
+                    }
+                },
+
+               new FeatureNode("Taskbar")
+                {
+                    Children =
+                    {
+                       new FeatureNode(new AlwaysShowTrayIcons()),
+                       new FeatureNode(new RemoveMeetNowButton()),
+                       new FeatureNode(new DisableNewsAndInterests()),
+                       new FeatureNode(new DisableWidgets()),
+                       new FeatureNode(new TaskbarEndTask()),
+                       new FeatureNode(new TaskbarSmallIcons()),
+                       new FeatureNode(new SearchboxTaskbarMode()),
+                       new FeatureNode(new ShowTaskViewButton()),
+                       new FeatureNode(new TaskbarAlignment()),
+                       new FeatureNode(new CleanTaskbar()) { DefaultChecked = false },
                     }
                 },
 
@@ -97,7 +108,14 @@ namespace Features
                        new FeatureNode(new ActivityHistory()),
                        new FeatureNode(new LocationTracking()),
                        new FeatureNode(new PrivacyExperience()),
-                       new FeatureNode(new Telemetry()),
+                       new FeatureNode(new DiagnosticData()),
+                       new FeatureNode(new SilentAppInstallation()),
+                       new FeatureNode(new WindowsSpotlightLockScreen()),
+                       new FeatureNode(new LockScreenSlideshow()),
+                       new FeatureNode(new AppLaunchTracking()),
+                       new FeatureNode(new OnlineSpeechRecognition()),
+                       new FeatureNode(new NarratorOnlineServices()),
+
                     }
                 },
 
@@ -124,6 +142,7 @@ namespace Features
                        new FeatureNode(new CopilotTaskbar()),
                        new FeatureNode(new Recall()),
                        new FeatureNode(new ClickToDo()) { DefaultChecked = false },
+                       new FeatureNode(new DisableSearchBoxSuggestions()),
                     }
                 },
             };

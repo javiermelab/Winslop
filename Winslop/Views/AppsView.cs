@@ -1,62 +1,158 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Windows.Foundation;
+using Windows.Management.Deployment;
 using Winslop.Properties;
 
 namespace Winslop.Views
 {
     /// <summary>
-    /// AppsView encapsulates app scanning and uninstall logic for the Apps tab.
+    /// AppsView encapsulates:
+    /// - pattern loading (Plugins\CFEnhancer.txt OR built-in resource list)
+    /// - scanning installed Store apps
+    /// - search/filter with checked-state preservation
+    /// - uninstall of selected apps
     /// </summary>
     public partial class AppsView : UserControl, IMainActions, ISearchable, IView
     {
-        // Keeps the full unfiltered app list for search reset/filtering
-        private string[] _allApps = Array.Empty<string>();
+        // Keeps the full unfiltered app list for search reset/filtering.
+        private string[] _allApps = new string[0];
 
-        private readonly AppManager _appManager;
+        // Optional mapping if we want to show friendly names
+        private readonly Dictionary<string, string> _fullNameToName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        public AppsView(AppManager appManager)
+        private enum AppDisplayMode
         {
-            _appManager = appManager ?? throw new ArgumentNullException(nameof(appManager));
-            InitializeComponent();
+            Recommended = 0,
+            AllInstalled = 1,
+            PluginOnly = 2,
+            BuiltInOnly = 3
         }
 
+        public AppsView()
+        {
+            InitializeComponent();
+            InitializeDisplayModeCombo();
+        }
+
+        private void InitializeDisplayModeCombo()
+        {
+            if (comboDisplayMode == null)
+                return;
+
+            comboDisplayMode.Items.Clear();
+            comboDisplayMode.Items.Add("Standard scan (recommended)");
+            comboDisplayMode.Items.Add("Full scan (all installed apps)");
+            comboDisplayMode.Items.Add("Scan using community list (CFEnhancer)");
+            comboDisplayMode.Items.Add("Scan using built-in list");
+
+            comboDisplayMode.DropDownStyle = ComboBoxStyle.DropDownList;
+            comboDisplayMode.SelectedIndex = 0;
+
+         //   comboDisplayMode.SelectedIndexChanged += async (s, e) => await AnalyzeAsync();
+        }
+
+        private AppDisplayMode SelectedMode
+        {
+            get
+            {
+                if (comboDisplayMode == null)
+                    return AppDisplayMode.Recommended;
+
+                switch (comboDisplayMode.SelectedIndex)
+                {
+                    case 1: return AppDisplayMode.AllInstalled;
+                    case 2: return AppDisplayMode.PluginOnly;
+                    case 3: return AppDisplayMode.BuiltInOnly;
+                    default: return AppDisplayMode.Recommended;
+                }
+            }
+        }
+
+        // ---------------- IMainActions ----------------
+
         /// <summary>
-        /// Scans installed apps using patterns (external plugin list preferred, fallback to built-in list).
-        /// Populates the CheckedListBox with detected apps.
+        /// Scans installed apps based on the selected display mode and populates the list.
         /// </summary>
         public async Task AnalyzeAsync()
         {
             checkedListBoxApps.Items.Clear();
+            _fullNameToName.Clear();
 
-            // Try loading patterns from CFEnhancer.txt (located in Plugins folder)
-            var (bloatwarePatterns, whitelistPatterns, scanAll) = _appManager.LoadExternalBloatwarePatterns();
+            // Load plugin and built-in patterns once.
+            var plugin = LoadExternalBloatwarePatterns();
+            var builtIn = LoadBuiltInPatterns();
 
-            if (bloatwarePatterns.Length == 0 && !scanAll)
+            string[] bloat;
+            string[] white;
+            bool scanAll;
+
+            // Decide behavior based on ComboBox mode.
+            switch (SelectedMode)
             {
-                // Fallback to internal resource if external file not found or empty and scanAll is not enabled
-                bloatwarePatterns = Resources.PredefinedApps?
-                    .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(s => s.Trim().ToLower())
-                    .ToArray() ?? Array.Empty<string>();
+                case AppDisplayMode.AllInstalled:
+                    // Show everything, but still respect whitelist if plugin exists.
+                    bloat = plugin.bloatwarePatterns.Length > 0 ? plugin.bloatwarePatterns : builtIn.bloat;
+                    white = plugin.whitelistPatterns.Length > 0 ? plugin.whitelistPatterns : builtIn.white;
+                    scanAll = true;
+                    Logger.Log("Displaying all installed applications.", LogLevel.Info);
+                    break;
 
-                whitelistPatterns = Array.Empty<string>();
-                Logger.Log("Using built-in bloatware list.", LogLevel.Info);
+                case AppDisplayMode.PluginOnly:
+                    // Only plugin list; if missing, show empty list with a friendly message.
+                    if (plugin.bloatwarePatterns.Length == 0 && !plugin.scanAll)
+                    {
+                        Logger.Log("No plugin list found. Install CFEnhancer to use plugin recommendations.", LogLevel.Warning);
+                        _allApps = new string[0];
+                        FillList(_allApps);
+                        return;
+                    }
+                    bloat = plugin.bloatwarePatterns;
+                    white = plugin.whitelistPatterns;
+                    scanAll = plugin.scanAll; // allow wildcard mode if plugin has it
+                    Logger.Log("Displaying plugin recommendations (CFEnhancer).", LogLevel.Info);
+                    break;
+
+                case AppDisplayMode.BuiltInOnly:
+                    bloat = builtIn.bloat;
+                    white = builtIn.white;
+                    scanAll = false;
+                    Logger.Log("Displaying built-in recommendations.", LogLevel.Info);
+                    break;
+
+                default: // Recommended
+                    if (plugin.bloatwarePatterns.Length > 0 || plugin.scanAll)
+                    {
+                        bloat = plugin.bloatwarePatterns;
+                        white = plugin.whitelistPatterns;
+                        scanAll = plugin.scanAll; // if plugin has wildcard, respect it in "Recommended"
+                        Logger.Log("Displaying recommended applications (plugin).", LogLevel.Info);
+                    }
+                    else
+                    {
+                        bloat = builtIn.bloat;
+                        white = builtIn.white;
+                        scanAll = false;
+                        Logger.Log("Displaying recommended applications (built-in).", LogLevel.Info);
+                    }
+                    break;
             }
-            else
-            {
-                Logger.Log("🔎 Plugin ready: CFEnhancer (external bloatware list)", LogLevel.Info);
-            }
 
-            // Analyze installed apps based on patterns and whitelist, and optionally scan all
-            var apps = await _appManager.AnalyzeAndLogAppsAsync(bloatwarePatterns, whitelistPatterns, scanAll);
+            // Analyze installed apps.
+            List<AppAnalysisResult> results = await AnalyzeAppsAsync(bloat, white, scanAll);
 
-            foreach (var app in apps)
-                checkedListBoxApps.Items.Add(app.FullName);
+            // Log summary.
+            LogAnalysisResults(results, scanAll);
 
-            // Cache full list for search/filter (used by ISearchable)
-            _allApps = apps.Select(a => a.FullName).ToArray();
+            // Fill UI with FullName strings (as before).
+            string[] fullNames = results.Select(r => r.FullName).ToArray();
+            _allApps = fullNames;
+
+            FillList(fullNames);
         }
 
         /// <summary>
@@ -66,16 +162,14 @@ namespace Winslop.Views
         {
             Logger.OutputBox?.Clear();
 
-            // Fix selected Store apps
-            var selectedApps = checkedListBoxApps.CheckedItems.Cast<string>().ToList();
-            if (selectedApps.Count == 0)
+            List<string> selected = checkedListBoxApps.CheckedItems.Cast<string>().ToList();
+            if (selected.Count == 0)
                 return;
 
-            var removedApps = await _appManager.UninstallSelectedAppsAsync(selectedApps);
+            List<string> removed = await UninstallSelectedAppsAsync(selected);
 
-            // Update UI after uninstall
-            foreach (var app in removedApps)
-                checkedListBoxApps.Items.Remove(app);
+            for (int i = 0; i < removed.Count; i++)
+                checkedListBoxApps.Items.Remove(removed[i]);
         }
 
         /// <summary>
@@ -83,46 +177,80 @@ namespace Winslop.Views
         /// </summary>
         public void ToggleSelection()
         {
-            bool shouldCheck = checkedListBoxApps.Items.Cast<object>()
-                .Any(item => checkedListBoxApps.GetItemChecked(checkedListBoxApps.Items.IndexOf(item)) == false);
+            bool shouldCheck = false;
+
+            for (int i = 0; i < checkedListBoxApps.Items.Count; i++)
+            {
+                if (!checkedListBoxApps.GetItemChecked(i))
+                {
+                    shouldCheck = true;
+                    break;
+                }
+            }
 
             for (int i = 0; i < checkedListBoxApps.Items.Count; i++)
                 checkedListBoxApps.SetItemChecked(i, shouldCheck);
         }
 
-        // ---------------- SearchInterface ----------------
+        // ---------------- ISearchable ----------------
 
         /// <summary>
-        /// Rebuilds the CheckedListBox based on a search query.
-        /// Empty query restores the full list.
+        /// Applies search to the apps list (empty query = reset).
+        /// Preserves checked state for items that remain visible.
         /// </summary>
+        public void ApplySearch(string query)
+        {
+            ApplyAppsFilter(query);
+        }
+
+        // ---------------- IView ----------------
+
+        /// <summary>
+        /// Re-analyze apps when refreshing the view.
+        /// </summary>
+        public void RefreshView()
+        {
+            // Fire-and-forget is okay for UI refresh
+            _ = AnalyzeAsync();
+            Logger.Clear();
+        }
+
+        // ---------------- Filtering ----------------
+
         private void ApplyAppsFilter(string query)
         {
-            // If nothing has been analyzed yet, there is nothing to filter
             if (_allApps == null || _allApps.Length == 0)
                 return;
 
             string q = (query ?? string.Empty).Trim();
 
-            // Preserve checked state by app name
-            var checkedSet = checkedListBoxApps.CheckedItems
-                .Cast<string>()
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // Preserve checked state by app name (FullName string here)
+            HashSet<string> checkedSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string s in checkedListBoxApps.CheckedItems.Cast<string>())
+                checkedSet.Add(s);
+
+            string[] items;
+            if (string.IsNullOrEmpty(q))
+            {
+                items = _allApps;
+            }
+            else
+            {
+                items = _allApps
+                    .Where(a => a.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .ToArray();
+            }
 
             checkedListBoxApps.BeginUpdate();
             try
             {
                 checkedListBoxApps.Items.Clear();
 
-                var items = string.IsNullOrEmpty(q)
-                    ? _allApps
-                    : _allApps.Where(a => a.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0).ToArray();
-
-                foreach (var app in items)
+                for (int i = 0; i < items.Length; i++)
                 {
+                    string app = items[i];
                     int idx = checkedListBoxApps.Items.Add(app);
 
-                    // Restore checked state for items that were checked before filtering
                     if (checkedSet.Contains(app))
                         checkedListBoxApps.SetItemChecked(idx, true);
                 }
@@ -133,17 +261,281 @@ namespace Winslop.Views
             }
         }
 
-        public void ApplySearch(string query)
+        private void FillList(string[] items)
         {
-            // Apply search to apps list (empty query = reset)
-            ApplyAppsFilter(query);
+            checkedListBoxApps.BeginUpdate();
+            try
+            {
+                checkedListBoxApps.Items.Clear();
+                checkedListBoxApps.Items.AddRange(items);
+            }
+            finally
+            {
+                checkedListBoxApps.EndUpdate();
+            }
         }
 
-        public void RefreshView()
+        // ---------------- Core logic ----------------
+
+        private class AppAnalysisResult
         {
-            // Re-analyze apps when refreshing the view
-            _ = AnalyzeAsync();
-            Logger.Clear();
+            public string AppName { get; set; }
+            public string FullName { get; set; }
+        }
+
+        /// <summary>
+        /// Loads all installed Store apps using PackageManager.
+        /// Returns dictionary: appName > fullName.
+        /// </summary>
+        private static async Task<Dictionary<string, string>> LoadAppsAsync()
+        {
+            Dictionary<string, string> dir = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            PackageManager pm = new PackageManager();
+            var packages = await Task.Run(() =>
+                pm.FindPackagesForUserWithPackageTypes(string.Empty, PackageTypes.Main));
+
+            foreach (var p in packages)
+            {
+                string name = p.Id.Name;
+                string fullName = p.Id.FullName;
+
+                if (!dir.ContainsKey(name))
+                    dir[name] = fullName;
+            }
+
+            Logger.Log(string.Format("(Checked against {0} apps from the system)", dir.Count));
+            return dir;
+        }
+
+        /// <summary>
+        /// Analyzes installed apps using bloatware patterns and whitelist.
+        /// If scanAll is true, includes everything except whitelist.
+        /// Otherwise includes only apps matching any bloatware pattern.
+        /// </summary>
+        private async Task<List<AppAnalysisResult>> AnalyzeAppsAsync(string[] bloatwarePatterns, string[] whitelistPatterns, bool scanAll)
+        {
+            Logger.Log("\n🧩 APPS ANALYSIS", LogLevel.Info);
+            Logger.Log(new string('=', 50), LogLevel.Info);
+
+            Dictionary<string, string> apps = await LoadAppsAsync();
+
+            string[] bloat = Normalize(bloatwarePatterns);
+            string[] white = Normalize(whitelistPatterns);
+
+            List<AppAnalysisResult> results = new List<AppAnalysisResult>();
+
+            foreach (var kvp in apps)
+            {
+                string name = kvp.Key;
+                string full = kvp.Value;
+                string lower = name.ToLowerInvariant();
+
+                // Always skip whitelisted apps
+                if (IsMatchAny(lower, white))
+                    continue;
+
+                // Show all if scanAll; otherwise only bloat matches
+                if (scanAll || IsMatchAny(lower, bloat))
+                {
+                    results.Add(new AppAnalysisResult { AppName = name, FullName = full });
+                    _fullNameToName[full] = name;
+                }
+            }
+
+            return results;
+        }
+
+        private static bool IsMatchAny(string haystackLower, string[] patternsLower)
+        {
+            if (patternsLower == null || patternsLower.Length == 0)
+                return false;
+
+            for (int i = 0; i < patternsLower.Length; i++)
+            {
+                if (haystackLower.Contains(patternsLower[i]))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static void LogAnalysisResults(List<AppAnalysisResult> results, bool scanAll)
+        {
+            if (scanAll)
+            {
+                Logger.Log(string.Format("Showing all apps (except whitelist): {0}", results.Count), LogLevel.Info);
+                Logger.Log("");
+                return;
+            }
+
+            if (results.Count > 0)
+            {
+                Logger.Log("Bloatware apps detected:", LogLevel.Info);
+                for (int i = 0; i < results.Count; i++)
+                {
+                    var a = results[i];
+                    Logger.Log(string.Format("❌ [ Bloatware ] {0} ({1})", a.AppName, a.FullName), LogLevel.Warning);
+                }
+            }
+            else
+            {
+                Logger.Log("✅ No Microsoft Store bloatware apps found.", LogLevel.Info);
+            }
+
+            Logger.Log("");
+        }
+
+        /// <summary>
+        /// Uninstall a Store app by full package name.
+        /// </summary>
+        private static async Task<bool> UninstallAppAsync(string fullName)
+        {
+            try
+            {
+                PackageManager pm = new PackageManager();
+                var op = pm.RemovePackageAsync(fullName);
+
+                // Await WinRT async operation without ManualResetEvent.
+                await op.AsTask();
+
+                if (op.Status == AsyncStatus.Completed)
+                {
+                    Logger.Log(string.Format("Successfully uninstalled app: {0}", fullName));
+                    return true;
+                }
+
+                Logger.Log(string.Format("Failed to uninstall app: {0}", fullName), LogLevel.Warning);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Logger.Log(string.Format("Error uninstalling app {0}: {1}", fullName, ex.Message), LogLevel.Warning);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Uninstalls selected apps and returns those removed successfully.
+        /// </summary>
+        private static async Task<List<string>> UninstallSelectedAppsAsync(List<string> selectedApps)
+        {
+            List<string> removed = new List<string>();
+
+            for (int i = 0; i < selectedApps.Count; i++)
+            {
+                string fullName = selectedApps[i];
+                Logger.Log(string.Format("🗑️ Removing app: {0}...", fullName));
+
+                if (await UninstallAppAsync(fullName))
+                    removed.Add(fullName);
+            }
+
+            for (int i = 0; i < removed.Count; i++)
+                Logger.Log(string.Format("🗑️ Removed Store App: {0}", removed[i]));
+
+            List<string> failed = selectedApps.Except(removed).ToList();
+            for (int i = 0; i < failed.Count; i++)
+                Logger.Log(string.Format("⚠️ Failed to remove Store App: {0}", failed[i]), LogLevel.Warning);
+
+            Logger.Log("App cleanup complete.");
+            return removed;
+        }
+
+        /// <summary>
+        /// Loads external bloatware and whitelist patterns from Plugins\CFEnhancer.txt.
+        /// Supports:
+        /// - "!" prefix => whitelist entry
+        /// - "*" or "*.*" => scanAll wildcard
+        /// - "#" comments
+        /// </summary>
+        private static (string[] bloatwarePatterns, string[] whitelistPatterns, bool scanAll)
+            LoadExternalBloatwarePatterns(string fileName = "CFEnhancer.txt")
+        {
+            try
+            {
+                string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+                string fullPath = Path.Combine(exeDir, "Plugins", fileName);
+
+                if (!File.Exists(fullPath))
+                {
+                    Logger.Log(
+                        "⚠️ The bloatware radar stays basic for now 🧠. Get the enhanced detection list from Start > Manage plugins > CFEnhancer plugin",
+                        LogLevel.Warning);
+
+                    return (new string[0], new string[0], false);
+                }
+
+                List<string> bloat = new List<string>();
+                List<string> white = new List<string>();
+                bool scanAll = false;
+
+                foreach (string raw in File.ReadLines(fullPath))
+                {
+                    // Strip comments and trim
+                    string entry = raw.Split('#')[0].Trim();
+                    if (string.IsNullOrWhiteSpace(entry))
+                        continue;
+
+                    // Wildcard: show all installed apps (except whitelist)
+                    if (entry == "*" || entry == "*.*")
+                    {
+                        scanAll = true;
+                        continue;
+                    }
+
+                    // Whitelist entry: leading "!"
+                    if (entry.StartsWith("!"))
+                    {
+                        string w = entry.Substring(1).Trim().ToLowerInvariant();
+                        if (!string.IsNullOrEmpty(w))
+                            white.Add(w);
+                    }
+                    else
+                    {
+                        bloat.Add(entry.ToLowerInvariant());
+                    }
+                }
+
+                return (Normalize(bloat), Normalize(white), scanAll);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log("Error reading external bloatware file: " + ex.Message, LogLevel.Warning);
+                return (new string[0], new string[0], false);
+            }
+        }
+
+        /// <summary>
+        /// Fallback bloatware list from Resources.PredefinedApps (comma-separated).
+        /// </summary>
+        private static (string[] bloat, string[] white) LoadBuiltInPatterns()
+        {
+            string raw = Resources.PredefinedApps ?? string.Empty;
+
+            string[] bloat = raw
+                .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim().ToLowerInvariant())
+                .Where(s => s.Length > 0)
+                .Distinct()
+                .ToArray();
+
+            return (bloat, new string[0]);
+        }
+
+        /// <summary>
+        /// Normalize patterns: trim, lowercase, remove empty, distinct.
+        /// </summary>
+        private static string[] Normalize(IEnumerable<string> items)
+        {
+            if (items == null)
+                return new string[0];
+
+            return items
+                .Select(s => (s ?? string.Empty).Trim().ToLowerInvariant())
+                .Where(s => s.Length > 0)
+                .Distinct()
+                .ToArray();
         }
     }
 }

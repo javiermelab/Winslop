@@ -14,6 +14,18 @@ namespace Winslop
         {
             return ID();
         }
+
+        // Returns true if this feature is supported on the current OS/environment.
+        public virtual bool IsApplicable()
+        {
+            return true;
+        }
+
+        // Optional UI/log hint when the feature is not applicable.
+        public virtual string InapplicableReason()
+        {
+            return null;
+        }
     }
 
 }

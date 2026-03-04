@@ -10,41 +10,63 @@ namespace Winslop.Extensions
 {
     public partial class ExtensionsItemControl : UserControl
     {
-        private readonly ExtensionsDefinition _tool;
-        private readonly string _placeholderText = "Enter input (e.g., IDs or raw arguments)";
+        // The tool currently shown in this details panel
+        private ExtensionsDefinition _tool;
 
-        public ExtensionsItemControl(ExtensionsDefinition tool)
+        private const string DefaultPlaceholder = "Enter input (e.g., IDs or raw arguments)";
+
+        /// <summary>
+        /// Fired after a script was deleted via Uninstall button.
+        /// The master view should reload the list after this.
+        /// </summary>
+        public event EventHandler ToolUninstalled;
+
+        /// <summary>
+        /// Parameterless constructor is important for the WinForms Designer
+        /// and also allows us to create this control in code.
+        /// </summary>
+        public ExtensionsItemControl()
         {
             InitializeComponent();
-            _tool = tool ?? throw new ArgumentNullException(nameof(tool));
-
-            InitializeBasics();
-            InitializeOptions();
-            InitializeTextInput();
-            InitializePoweredByLink();
+            this.AutoScaleMode = AutoScaleMode.Dpi;
+            ClearUI();
         }
 
         /// <summary>
-        /// Basic label and layout setup
+        /// Optional convenience constructor.
         /// </summary>
-        private void InitializeBasics()
+        public ExtensionsItemControl(ExtensionsDefinition tool) : this()
         {
-            labelTitle.Text = _tool.Title;
-            labelDescription.Text = _tool.Description;
-            labelIcon.Text = _tool.Icon;
+            SetTool(tool);
+        }
+
+        /// <summary>
+        /// Sets the tool to show in this control (details mode).
+        /// Called when selection changes in the master list
+        /// </summary>
+        public void SetTool(ExtensionsDefinition tool)
+        {
+            _tool = tool;
+
+            if (_tool == null)
+            {
+                ClearUI();
+                return;
+            }
+
+            // Basic UI
+            labelTitle.Text = _tool.Title ?? "";
+            labelDescription.Text = _tool.Description ?? "";
+            labelIcon.Text = _tool.Icon ?? "";
+
             progressBar.Visible = false;
-            labelStatus.Text = string.Empty;
-        }
+            labelStatus.Text = "";
 
-        /// <summary>
-        /// Populate dropdown if # Options are defined
-        /// </summary>
-        private void InitializeOptions()
-        {
+            // Options dropdown
+            comboOptions.Items.Clear();
             if (_tool.Options != null && _tool.Options.Count > 0)
             {
                 comboOptions.Visible = true;
-                comboOptions.Items.Clear();
                 comboOptions.Items.AddRange(_tool.Options.ToArray());
                 comboOptions.SelectedIndex = 0;
             }
@@ -52,54 +74,111 @@ namespace Winslop.Extensions
             {
                 comboOptions.Visible = false;
             }
+
+            // Input textbox
+            if (textInput != null)
+            {
+                textInput.Visible = _tool.SupportsInput;
+                if (_tool.SupportsInput)
+                {
+                    var placeholder = !string.IsNullOrWhiteSpace(_tool.InputPlaceholder)
+                        ? _tool.InputPlaceholder
+                        : DefaultPlaceholder;
+
+                    SetupPlaceholder(textInput, placeholder);
+                }
+            }
+
+            // Powered by link
+            SetupPoweredBy();
+
+            // Enable actions
+            btnRun.Visible = true;
+            btnUninstall.Visible = true;
         }
 
         /// <summary>
-        /// Configure input textbox for # Input:true scripts
+        /// Clears UI when no tool is selected.
         /// </summary>
-        private void InitializeTextInput()
+        private void ClearUI()
         {
-            if (textInput == null) return;
+            _tool = null;
 
-            textInput.Visible = _tool.SupportsInput;
+            labelTitle.Text = "";
+            labelDescription.Text = "";
+            labelIcon.Text = "";
 
-            if (!_tool.SupportsInput)
-                return;
+            comboOptions.Visible = false;
+            comboOptions.Items.Clear();
 
-            // Determine placeholder
-            string placeholder = !string.IsNullOrWhiteSpace(_tool.InputPlaceholder)
+            if (textInput != null)
+            {
+                textInput.Visible = false;
+                textInput.Text = "";
+            }
+
+            linkPoweredBy.Visible = false;
+
+            progressBar.Visible = false;
+            labelStatus.Text = "Select an extension on the left.";
+
+            btnRun.Visible = false;
+            btnUninstall.Visible = false;
+        }
+
+        /// <summary>
+        /// Ensures placeholder behavior works without stacking event handlers.
+        /// </summary>
+        private void SetupPlaceholder(TextBox tb, string placeholder)
+        {
+            // Avoid stacking handlers if SetTool is called multiple times
+            tb.GotFocus -= TextInput_GotFocus;
+            tb.LostFocus -= TextInput_LostFocus;
+
+            tb.Text = placeholder;
+            tb.ForeColor = Color.Gray;
+
+            tb.GotFocus += TextInput_GotFocus;
+            tb.LostFocus += TextInput_LostFocus;
+        }
+
+        private void TextInput_GotFocus(object sender, EventArgs e)
+        {
+            if (_tool == null || textInput == null) return;
+
+            var placeholder = !string.IsNullOrWhiteSpace(_tool.InputPlaceholder)
                 ? _tool.InputPlaceholder
-                : "Enter input (e.g., IDs or raw arguments)";
+                : DefaultPlaceholder;
 
-            textInput.Text = placeholder;
-            textInput.ForeColor = Color.Gray;
-
-            // UX behavior: placeholder clear/restore
-            textInput.GotFocus += (s, e) =>
+            if (textInput.Text == placeholder)
             {
-                if (textInput.Text.Equals(placeholder, StringComparison.Ordinal))
-                {
-                    textInput.Text = string.Empty;
-                    textInput.ForeColor = SystemColors.WindowText;
-                }
-            };
-
-            textInput.LostFocus += (s, e) =>
-            {
-                if (string.IsNullOrWhiteSpace(textInput.Text))
-                {
-                    textInput.Text = placeholder;
-                    textInput.ForeColor = Color.Gray;
-                }
-            };
+                textInput.Text = "";
+                textInput.ForeColor = SystemColors.WindowText;
+            }
         }
 
-        /// <summary>
-        /// Show "Powered by" link if metadata is provided
-        /// </summary>
-        private void InitializePoweredByLink()
+        private void TextInput_LostFocus(object sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(_tool.PoweredByText) ||
+            if (_tool == null || textInput == null) return;
+
+            var placeholder = !string.IsNullOrWhiteSpace(_tool.InputPlaceholder)
+                ? _tool.InputPlaceholder
+                : DefaultPlaceholder;
+
+            if (string.IsNullOrWhiteSpace(textInput.Text))
+            {
+                textInput.Text = placeholder;
+                textInput.ForeColor = Color.Gray;
+            }
+        }
+
+        private void SetupPoweredBy()
+        {
+            // Unhook handler to avoid duplicates
+            linkPoweredBy.LinkClicked -= linkPoweredBy_LinkClicked;
+
+            if (_tool == null ||
+                string.IsNullOrWhiteSpace(_tool.PoweredByText) ||
                 string.IsNullOrWhiteSpace(_tool.PoweredByUrl))
             {
                 linkPoweredBy.Visible = false;
@@ -109,20 +188,29 @@ namespace Winslop.Extensions
             linkPoweredBy.Text = _tool.PoweredByText.Trim();
             linkPoweredBy.Tag = _tool.PoweredByUrl.Trim();
             linkPoweredBy.Visible = true;
+
             linkPoweredBy.LinkClicked += linkPoweredBy_LinkClicked;
+
+            // Accessibility (optional)
             linkPoweredBy.AccessibleName = "Powered by link";
             linkPoweredBy.AccessibleDescription = "Opens the developer's website";
         }
 
         private async void btnRun_Click(object sender, EventArgs e)
         {
+            if (_tool == null)
+                return;
+
             if (!File.Exists(_tool.ScriptPath))
             {
-                MessageBox.Show("Script not found: " + _tool.ScriptPath, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Script not found: " + _tool.ScriptPath, "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
-            this.Enabled = false;
+            btnRun.Enabled = false;
+            btnUninstall.Enabled = false;
+
             progressBar.Visible = true;
             progressBar.Style = ProgressBarStyle.Marquee;
             labelStatus.Text = "Running...";
@@ -161,25 +249,25 @@ namespace Winslop.Extensions
                 if (_tool.SupportsInput && textInput != null && textInput.Visible)
                 {
                     var t = (textInput.Text ?? string.Empty).Trim();
-                    var placeholder = string.IsNullOrWhiteSpace(_tool.InputPlaceholder) ? _placeholderText : _tool.InputPlaceholder;
+                    var placeholder = !string.IsNullOrWhiteSpace(_tool.InputPlaceholder)
+                        ? _tool.InputPlaceholder
+                        : DefaultPlaceholder;
+
                     if (!string.IsNullOrEmpty(t) && !string.Equals(t, placeholder, StringComparison.Ordinal))
                         inputArg = t;
                 }
 
                 // Build positional argument string:
-                //   <space>"<optionArg>" [space]"<inputArg>"
-                // This keeps backward-compatibility with scripts using $args[0]/$args[1]
-                // AND also binds to param($Option,$ArgsText) by position when present.
+                //   "<optionArg>" "<inputArg>"
                 var extraArgs = new StringBuilder();
                 if (!string.IsNullOrWhiteSpace(optionArg))
                     extraArgs.Append(" ").Append(QuoteForPs(optionArg));
                 if (!string.IsNullOrWhiteSpace(inputArg))
                     extraArgs.Append(" ").Append(QuoteForPs(inputArg));
 
-                // Live log window if requested
                 if (useLog)
                 {
-                    // Start a new visual log section for this specific tool or extension
+                    // Start a new visual log section for this tool run
                     Logger.BeginSection($"Running {_tool.Title ?? _tool.ScriptPath}");
                 }
 
@@ -201,7 +289,8 @@ namespace Winslop.Extensions
             finally
             {
                 progressBar.Visible = false;
-                this.Enabled = true;
+                btnRun.Enabled = true;
+                btnUninstall.Enabled = true;
             }
         }
 
@@ -209,7 +298,6 @@ namespace Winslop.Extensions
         {
             return Task.Run(() =>
             {
-                // Compose final PowerShell commandline; 'positionalArgs' already starts with a space when non-empty
                 var argsForPs = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"{positionalArgs}";
 
                 if (useConsole)
@@ -238,9 +326,7 @@ namespace Winslop.Extensions
                         p.OutputDataReceived += (s, e) =>
                         {
                             if (!string.IsNullOrEmpty(e.Data))
-                            {
                                 Logger.Log(e.Data, LogLevel.Info);
-                            }
                         };
 
                         p.ErrorDataReceived += (s, e) =>
@@ -264,7 +350,7 @@ namespace Winslop.Extensions
         }
 
         /// <summary>
-        /// Double-quote for PowerShell positional args: "value with \"escaped\" quotes"
+        /// Quotes a string for PowerShell positional args.
         /// </summary>
         private static string QuoteForPs(string value)
         {
@@ -273,17 +359,15 @@ namespace Winslop.Extensions
             return "\"" + escaped + "\"";
         }
 
-        /// <summary>
-        /// Open the "Powered by" link in default browser
-        /// </summary>
         private void linkPoweredBy_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
             try
             {
-                Process.Start(new ProcessStartInfo(linkPoweredBy.Tag.ToString())
-                {
-                    UseShellExecute = true
-                });
+                var url = linkPoweredBy.Tag?.ToString();
+                if (string.IsNullOrWhiteSpace(url))
+                    return;
+
+                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
             }
             catch (Exception ex)
             {
@@ -296,16 +380,24 @@ namespace Winslop.Extensions
         {
             try
             {
+                if (_tool == null)
+                    return;
+
                 if (!File.Exists(_tool.ScriptPath))
                 {
                     MessageBox.Show("File already missing:\n" + _tool.ScriptPath,
                         "Uninstall", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    this.Parent?.Controls.Remove(this); // remove from UI anyway
+
+                    // Notify master to reload list
+                    ToolUninstalled?.Invoke(this, EventArgs.Empty);
+
+                    // Clear details panel
+                    ClearUI();
                     return;
                 }
 
                 var confirm = MessageBox.Show(
-                    "Do you want to remove this extension?\n\n" + _tool.Title,
+                    "Do you want to remove this extension?\n\n" + (_tool.Title ?? _tool.ScriptPath),
                     "Confirm uninstall",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Exclamation);
@@ -315,8 +407,11 @@ namespace Winslop.Extensions
 
                 File.Delete(_tool.ScriptPath);
 
-                // Remove this control from the panel immediately
-                this.Parent?.Controls.Remove(this);
+                // Notify master view so it can refresh the left list
+                ToolUninstalled?.Invoke(this, EventArgs.Empty);
+
+                // Clear the details UI after uninstall
+                ClearUI();
             }
             catch (Exception ex)
             {

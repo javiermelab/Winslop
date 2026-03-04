@@ -15,7 +15,7 @@ namespace Winslop.Views
         private List<PluginEntry> visiblePlugins = new List<PluginEntry>(); // Plugins currently shown in the UI (filtered or not)
         private HashSet<string> installedPlugins = new HashSet<string>();   // Names of plugins already installed on disk
 
-        private const string manifestUrl = "https://raw.githubusercontent.com/builtbybel/CrapFixer/main/plugins/plugins_manifest.txt";
+        private const string manifestUrl = "https://raw.githubusercontent.com/builtbybel/Winslop/main/plugins/plugins_manifest.txt";
 
         public class PluginEntry
         {
