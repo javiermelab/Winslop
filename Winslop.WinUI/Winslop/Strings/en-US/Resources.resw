@@ -34,6 +34,15 @@
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
 
   <!-- ============================================================ -->
+  <!-- Translator credits                                            -->
+  <!-- Fill in your name and website to be credited in the app.      -->
+  <!-- Leave empty if you don't want to be credited.                 -->
+  <!-- ============================================================ -->
+  <data name="Language_TranslatorName"><value></value></data>
+  <data name="Language_TranslatorWebsite"><value></value></data>
+  <data name="Language_TranslatedBy"><value>Translated by</value></data>
+
+  <!-- ============================================================ -->
   <!-- XAML x:Uid: MainWindow — Navigation                          -->
   <!-- ============================================================ -->
   <data name="NavHome.Text"><value>Home</value></data>
