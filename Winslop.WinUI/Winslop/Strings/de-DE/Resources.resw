@@ -72,8 +72,7 @@
   <data name="Settings_ThemeSystem"><value>Systemeinstellung verwenden</value></data>
   <data name="Settings_ThemeLight"><value>Hell</value></data>
   <data name="Settings_ThemeDark"><value>Dunkel</value></data>
-  <data name="Settings_RestartTitle"><value>Neustart erforderlich</value></data>
-  <data name="Settings_RestartMessage"><value>Bitte starte die App neu, damit die &#196;nderung wirksam wird.</value></data>
+
   <data name="Settings_Extensions.Text"><value>Erweiterungen</value></data>
     <data name="Settings_ExtensionsSubtext.Text"><value>Verwalte native Plugins und eigenst&#228;ndige Tools.</value></data>
   <data name="Settings_ToolScripts.Text"><value>Erweiterungen</value></data>
@@ -119,6 +118,7 @@
   <!-- ============================================================ -->
   <data name="BtnAnalyzeText.Text"><value>System prüfen</value></data>
   <data name="BtnFixText.Text"><value>Ausgewählte Änderungen anwenden</value></data>
+  <data name="BtnActions.Content"><value>Aktionen</value></data>
 
   <!-- ============================================================ -->
   <!-- XAML x:Uid: FeaturesPage                                      -->
@@ -429,6 +429,8 @@ Möchtest du fortfahren?</value></data>
   <data name="InfoMigration.Title"><value>Neues Design, neues Kapitel — braucht Winslop einen neuen Namen?</value></data>
   <data name="InfoMigration.Message"><value>Winslop hat ein neues Gesicht — Zeit für einen neuen Namen? Mit dem Wechsel zu WinUI 3 hat sich die App verändert. Sag mir deine Meinung.</value></data>
   <data name="InfoMigration_Vote.Content"><value>Jetzt abstimmen →</value></data>
+  <data name="LoggerEmpty_Title.Text"><value>Noch keine Ergebnisse</value></data>
+  <data name="LoggerEmpty_Hint.Text"><value>Klicke auf "System prüfen" um deine Windows-Konfiguration zu scannen.</value></data>
 
   <!-- ============================================================ -->
   <!-- C# ResourceLoader: Plugins status (PluginsDialog.xaml.cs)     -->
